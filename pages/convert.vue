@@ -724,6 +724,10 @@ const processHevcQueue = async () => {
 
 const processHevcItem = async (item: HevcItem) => {
   try {
+    // Unique asset key per job so each WebM/MOV has its own CDN path (no overwrites)
+    const jobId = String(item.id).replace(/\D/g, '').slice(-10) || Date.now().toString(36)
+    const effectiveAssetName = `${item.outputName}_${jobId}`
+
     item.status = 'uploading'
     item.progress = 10
     item.progressText = 'Uploading WebM to server...'
@@ -745,9 +749,9 @@ const processHevcItem = async (item: HevcItem) => {
       body: {
         provider: item.cdnProvider,
         filePath: `raw/${uploadRes.filename}`,
-        remotePath: item.cdnPath,
-        assetName: item.outputName,
-        filename: `${item.outputName}.webm`,
+        remotePath: `${item.cdnPath.replace(/\/+$/, '')}/${effectiveAssetName}`,
+        assetName: effectiveAssetName,
+        filename: 'input.webm',
       },
     })
 
@@ -762,7 +766,7 @@ const processHevcItem = async (item: HevcItem) => {
     const triggerRes = await $fetch<{ success: boolean; message?: string; actionsUrl?: string; error?: string }>('/api/trigger-hevc', {
       method: 'POST',
       body: {
-        assetName: item.outputName,
+        assetName: effectiveAssetName,
         webmUrl,
         cdnProvider: item.cdnProvider,
         cdnPath: item.cdnPath,
@@ -776,7 +780,7 @@ const processHevcItem = async (item: HevcItem) => {
     item.progressText = 'Encoding HEVC on macOS runner...'
     addToast?.('success', triggerRes.message || `HEVC encoding triggered for ${item.outputName}!`)
 
-    const ready = await pollHevcReady(item)
+    const ready = await pollHevcReady(item, effectiveAssetName)
     if (!ready) {
       throw new Error('Timed out waiting for HEVC .mov to become available')
     }
@@ -792,13 +796,13 @@ const processHevcItem = async (item: HevcItem) => {
   }
 }
 
-const pollHevcReady = async (item: HevcItem, maxAttempts = 30, intervalMs = 10000): Promise<boolean> => {
+const pollHevcReady = async (item: HevcItem, effectiveAssetName: string, maxAttempts = 30, intervalMs = 10000): Promise<boolean> => {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const res = await $fetch<{ ready: boolean; url?: string; error?: string }>('/api/hevc-download-url', {
         method: 'GET',
         params: {
-          assetName: item.outputName,
+          assetName: effectiveAssetName,
           cdnProvider: item.cdnProvider,
           cdnPath: item.cdnPath,
         },

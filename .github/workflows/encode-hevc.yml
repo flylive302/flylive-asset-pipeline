@@ -51,9 +51,12 @@ jobs:
         run: |
           mkdir -p "output/hevc/${{ inputs.asset_name }}"
           echo "⏳ Encoding HEVC with alpha via VideoToolbox..."
-          # Decode WebM with libvpx-vp9 so alpha is preserved (default VP9 decoder drops alpha)
+          # 1) Decode WebM with libvpx-vp9 so alpha is preserved (default VP9 decoder drops alpha)
+          # 2) Convert to bgra so hevc_videotoolbox receives 4-channel input (encoder does not accept yuva420p)
           ffmpeg -y -hide_banner -loglevel info \
             -c:v libvpx-vp9 -i tmp/input.webm \
+            -filter_complex "[0:v]format=bgra[outv]" \
+            -map "[outv]" -map 0:a? \
             -c:v hevc_videotoolbox \
             -allow_sw 1 \
             -alpha_quality 0.75 \
