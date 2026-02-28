@@ -40,5 +40,8 @@ output/
 *.db-wal
 *.db-shm
 
+# Kiro settings (may contain tokens)
+.kiro/settings/
+
 # Wrangler
 .wrangler/

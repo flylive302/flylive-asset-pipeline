@@ -120,7 +120,7 @@ fi
 
 FILTER_COMPLEX="[0:v]crop=${HALF_W}:${HEIGHT}:${COLOR_X}:0[color];\
 [0:v]crop=${HALF_W}:${HEIGHT}:${ALPHA_X}:0${ALPHA_PROC}[alpha];\
-[color][alpha]alphamerge[outv]"
+[color][alpha]alphamerge,format=yuva420p[outv]"
 
 # ── Audio ────────────────────────────────────────────────────────────────────
 HAS_AUDIO=0
@@ -147,6 +147,7 @@ ffmpeg -y -hide_banner -loglevel info \
   -map "[outv]" \
   $AUDIO_ARGS \
   -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf "$CRF" -row-mt 1 -deadline good \
+  -auto-alt-ref 0 \
   "$TMP_OUT"
 
 # Ensure output directory exists
