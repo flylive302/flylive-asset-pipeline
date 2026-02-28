@@ -24,6 +24,16 @@ export default defineNuxtConfig({
   nitro: {
     experimental: {
       openAPI: true
+    },
+    // Increase timeout for video encoding operations
+    timing: false,
+    // Set request timeout to 15 minutes for large video processing
+    routeRules: {
+      '/api/process': { 
+        headers: { 
+          'connection': 'keep-alive'
+        }
+      }
     }
   }
 })

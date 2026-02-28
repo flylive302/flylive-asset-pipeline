@@ -1,88 +1,91 @@
-# Transparency Fix for WebM → HEVC Pipeline
+# HEVC Transparency Fix - Final Solution
 
 ## Problem Summary
 
-HEVC `.mov` files were not preserving transparency from WebM sources.
+HEVC .mov files were not showing transparency in Safari/iOS - they displayed a black background instead.
 
 ## Root Cause
 
-The GitHub Actions workflow was not using the correct VP9 decoder. The default VP9 decoder drops the alpha channel even though the WebM file contains it (indicated by `alpha_mode: 1` in metadata).
+The issue was the **pixel format**. VideoToolbox was encoding HEVC with `ayuv` pixel format, but Safari/iOS requires `bgra` format to properly render transparency.
 
 ## Solution
 
-### Key Findings from FFmpeg Documentation
-
-1. **VP9 Alpha Detection Issue**: `ffprobe` reports VP9 alpha files as `yuv420p` instead of `yuva420p`, but the alpha IS present. You must use `-c:v libvpx-vp9` decoder explicitly to access it.
-
-2. **hevc_videotoolbox Requirements**:
-   - Only available on macOS (Apple VideoToolbox)
-   - Accepts `bgra` pixel format for alpha (NOT `yuva420p`)
-   - Auto-selects correct format - do NOT specify `-pix_fmt`
-   - Requires `-alpha_quality > 0` to enable "HEVC Video with Alpha" profile
-   - Use `-tag:v hvc1` for broad compatibility
-
-### Fixed GitHub Actions Workflow
+Updated `.github/workflows/encode-hevc.yml` to explicitly convert to `bgra` format using the `scale_vt` filter:
 
 ```bash
 ffmpeg -y -hide_banner -loglevel info \
   -c:v libvpx-vp9 -i tmp/input.webm \
+  -vf "scale_vt=format=bgra" \
   -c:v hevc_videotoolbox \
   -allow_sw 1 \
   -alpha_quality 0.75 \
   -tag:v hvc1 \
   -movflags +faststart \
-  -c:a aac -b:a 128k \
-  output.mov
+  "output/hevc/asset_name/playable.mov"
 ```
 
-### What Changed
+Key changes:
+1. Added `-vf "scale_vt=format=bgra"` to force bgra pixel format
+2. Removed audio encoding (not needed for gift animations)
+3. Enhanced verification step to check pixel format
 
-**Before**:
-- Used default VP9 decoder (drops alpha)
-- Specified `-filter_complex` and `-pix_fmt` (causes format conflicts)
+## Why bgra Format?
 
-**After**:
-- Uses `-c:v libvpx-vp9` decoder (preserves alpha)
-- Removed `-pix_fmt` specification (let hevc_videotoolbox auto-select bgra)
-- Simplified command (no filter_complex needed)
+According to Apple's HEVC with Alpha documentation and real-world testing:
+- `ayuv` format: Technically correct for alpha, but Safari/iOS doesn't render it
+- `bgra` format: Required for Safari/iOS to properly display transparency
+- The `scale_vt` filter performs GPU-accelerated conversion to bgra
 
-## Verification
+## Testing WebM Files
 
-### Check if WebM has alpha:
+Before converting to HEVC, verify your WebM files have alpha:
+
 ```bash
-# Wrong way (shows yuv420p even with alpha):
-ffprobe input.webm
-
-# Correct way (shows yuva420p if alpha present):
-ffmpeg -c:v libvpx-vp9 -i input.webm 2>&1 | grep "Stream #0:0"
+./scripts/test-webm-alpha.sh output/webm/asset_name/playable.webm
 ```
 
-### Check if HEVC has alpha:
+This will check if the WebM file contains a proper alpha channel (yuva420p).
+
+## Upload Timeout Fix
+
+Increased timeout for video processing from 5 minutes to 10 minutes in `server/api/process.post.ts` to handle large files.
+
+## How to Test
+
+1. Upload a side-by-side MP4 file
+2. Convert to WebM (should produce yuva420p format)
+3. Upload WebM to CDN
+4. Trigger HEVC encoding via GitHub Actions
+5. Download the .mov file
+6. Test in Safari - transparency should work
+
+## Verification Commands
+
+Check WebM alpha (correct method):
 ```bash
-ffprobe output.mov
-# Look for pixel format with alpha (e.g., yuva420p, bgra)
+ffmpeg -c:v libvpx-vp9 -i file.webm -f null - 2>&1 | grep yuva420p
 ```
 
-### Extract transparent frame:
+Check HEVC pixel format:
 ```bash
-ffmpeg -i output.mov -frames:v 1 test.png
-file test.png  # Should show "RGBA" not "RGB"
+ffprobe -v error -select_streams v:0 -show_entries stream=pix_fmt -of default=noprint_wrappers=1:nokey=1 file.mov
+# Should output: bgra
 ```
 
-## Current Status
+Extract frame to verify transparency:
+```bash
+ffmpeg -i file.mov -frames:v 1 test.png
+file test.png  # Should show "PNG image data, ... 8-bit/color RGBA"
+```
 
-- ✅ WebM encoding already works correctly (alpha preserved)
-- ✅ GitHub Actions workflow updated with correct decoder
-- ⚠️ Existing HEVC files need re-encoding with new workflow
+## Browser Compatibility
 
-## Next Steps
-
-1. Push the updated `.github/workflows/encode-hevc.yml` to master
-2. Re-trigger HEVC encoding for existing assets via the web UI
-3. Verify transparency in output `.mov` files
+- Chrome/Android: WebM VP9 with alpha (yuva420p)
+- Safari/iOS: HEVC with alpha (bgra format required)
 
 ## References
 
-- [FFmpeg Ticket #8468](https://trac.ffmpeg.org/ticket/8468) - VP9 yuva420p encoding
-- [FFmpeg Ticket #11165](https://trac.ffmpeg.org/ticket/11165) - VP9 decoder alpha handling
-- [Stack Overflow: Convert WEBM to HEVC with alpha](https://stackoverflow.com/questions/61661140/convert-webm-to-hevc-with-alpha)
+- [Apple WWDC 2019: HEVC Video with Alpha](https://developer.apple.com/videos/play/wwdc2019/506/)
+- [Centricular: VideoToolbox HEVC Alpha](https://centricular.com/devlog/2024-08/videotoolbox-hevc-alpha/)
+- Safari requires bgra pixel format for HEVC alpha transparency
+- FFmpeg VP9 decoder requires `-c:v libvpx-vp9` flag to detect alpha

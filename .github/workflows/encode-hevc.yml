@@ -82,16 +82,17 @@ jobs:
           echo "⏳ Encoding HEVC with alpha via VideoToolbox..."
           # CRITICAL: 
           # 1. Use -c:v libvpx-vp9 decoder to properly decode alpha from WebM
-          # 2. hevc_videotoolbox auto-selects bgra format (do NOT specify -pix_fmt)
+          # 2. MUST specify -pix_fmt bgra for Safari/iOS compatibility (ayuv doesn't work in browsers)
           # 3. -alpha_quality must be > 0 to enable "HEVC Video with Alpha" profile
+          # 4. Use scale_vt filter to convert to bgra on GPU before encoding
           ffmpeg -y -hide_banner -loglevel info \
             -c:v libvpx-vp9 -i tmp/input.webm \
+            -vf "scale_vt=format=bgra" \
             -c:v hevc_videotoolbox \
             -allow_sw 1 \
             -alpha_quality 0.75 \
             -tag:v hvc1 \
             -movflags +faststart \
-            -c:a aac -b:a 128k \
             "output/hevc/${{ inputs.asset_name }}/playable.mov"
           echo "✅ Encoded successfully"
           ls -lh "output/hevc/${{ inputs.asset_name }}/playable.mov"
@@ -101,7 +102,7 @@ jobs:
         run: |
           echo "🔍 Verifying alpha channel in output..."
           
-          # Just check if file exists and has reasonable size
+          # Check if file exists and has reasonable size
           if [ ! -f "output/hevc/${{ inputs.asset_name }}/playable.mov" ]; then
             echo "❌ Output file not found!"
             exit 1
@@ -115,8 +116,16 @@ jobs:
             exit 1
           fi
           
-          echo "✅ HEVC file created successfully"
-          echo "Note: Alpha verification skipped due to ffprobe limitations with HEVC alpha files"
+          # Check pixel format - should be bgra for Safari/iOS compatibility
+          echo "🔍 Checking pixel format..."
+          PIX_FMT=$(ffprobe -v error -select_streams v:0 -show_entries stream=pix_fmt -of default=noprint_wrappers=1:nokey=1 "output/hevc/${{ inputs.asset_name }}/playable.mov" || echo "unknown")
+          echo "Pixel format: $PIX_FMT"
+          
+          if [ "$PIX_FMT" = "bgra" ]; then
+            echo "✅ HEVC file has correct bgra format for Safari/iOS transparency"
+          else
+            echo "⚠️  Warning: Pixel format is $PIX_FMT (expected bgra for Safari/iOS)"
+          fi
 
       - name: Upload HEVC to R2
         if: ${{ inputs.cdn_provider == 'r2' }}

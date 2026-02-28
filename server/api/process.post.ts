@@ -48,10 +48,11 @@ export default defineEventHandler(async (event) => {
 
   try {
     // Encode WebM (async — does not block the server)
+    // Increased timeout to 10 minutes for large files
     const cmd = `bash "${scriptPath}" -i "${rawPath}" -o "${webmOutput}" --alpha-side "${alphaSide || 'right'}" ${invertFlag}`
 
     console.log('Running:', cmd)
-    const log = await execAsync(cmd, { cwd, timeout: 300000 })
+    const log = await execAsync(cmd, { cwd, timeout: 600000 })
 
     // Generate thumbnail
     let thumbLog = ''
