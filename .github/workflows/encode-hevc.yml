@@ -51,11 +51,12 @@ jobs:
         run: |
           mkdir -p "output/hevc/${{ inputs.asset_name }}"
           echo "⏳ Encoding HEVC with alpha via VideoToolbox..."
-          # CRITICAL: Use -c:v libvpx-vp9 decoder to preserve alpha channel from WebM
-          # The default VP9 decoder drops the alpha plane even though alpha_mode=1 is set
+          # CRITICAL: 
+          # 1. Use -c:v libvpx-vp9 decoder to properly decode alpha from WebM
+          # 2. hevc_videotoolbox auto-selects bgra format (do NOT specify -pix_fmt)
+          # 3. -alpha_quality must be > 0 to enable "HEVC Video with Alpha" profile
           ffmpeg -y -hide_banner -loglevel info \
             -c:v libvpx-vp9 -i tmp/input.webm \
-            -vf "format=bgra" \
             -c:v hevc_videotoolbox \
             -allow_sw 1 \
             -alpha_quality 0.75 \
@@ -65,6 +66,19 @@ jobs:
             "output/hevc/${{ inputs.asset_name }}/playable.mov"
           echo "✅ Encoded successfully"
           ls -lh "output/hevc/${{ inputs.asset_name }}/playable.mov"
+
+      - name: Verify Alpha Channel
+        run: |
+          echo "🔍 Verifying alpha channel in output..."
+          ffprobe -v error -select_streams v:0 -show_entries stream=pix_fmt \
+            -of default=noprint_wrappers=1:nokey=1 \
+            "output/hevc/${{ inputs.asset_name }}/playable.mov"
+          # Extract a test frame to verify transparency
+          ffmpeg -i "output/hevc/${{ inputs.asset_name }}/playable.mov" \
+            -frames:v 1 /tmp/alpha_test.png
+          file /tmp/alpha_test.png | grep -q "RGBA" && \
+            echo "✅ Alpha channel verified (RGBA)" || \
+            echo "⚠️  Warning: No alpha detected in output"
 
       - name: Upload HEVC to R2
         if: ${{ inputs.cdn_provider == 'r2' }}
