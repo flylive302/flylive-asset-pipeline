@@ -58,6 +58,8 @@ export default defineEventHandler(async (event) => {
   const workflowFile = 'encode-hevc.yml'
   const apiUrl = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflowFile}/dispatches`
 
+  console.log('Triggering HEVC encoding with URL:', webmCdnUrl)
+
   const response = await fetch(apiUrl, {
     method: 'POST',
     headers: {
@@ -89,7 +91,7 @@ export default defineEventHandler(async (event) => {
 
   return {
     success: true,
-    message: `HEVC encoding triggered! The macOS runner will download the WebM, encode to HEVC, and upload the .mov to ${cdnProvider || 'r2'}.`,
+    message: `HEVC encoding triggered! The macOS runner will download the WebM from ${webmCdnUrl}, encode to HEVC, and upload the .mov to ${cdnProvider || 'r2'}.`,
     actionsUrl,
     webmUrl: webmCdnUrl,
   }

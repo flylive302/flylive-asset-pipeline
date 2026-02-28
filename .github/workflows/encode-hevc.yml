@@ -38,14 +38,43 @@ jobs:
         run: |
           mkdir -p tmp
           echo "⬇️  Downloading WebM from: ${{ inputs.webm_url }}"
-          curl -fSL "${{ inputs.webm_url }}" -o tmp/input.webm
+          
+          # Download with verbose output to debug issues
+          if ! curl -fSL -v "${{ inputs.webm_url }}" -o tmp/input.webm 2>&1 | tee /tmp/curl.log; then
+            echo "❌ Download failed!"
+            cat /tmp/curl.log
+            exit 1
+          fi
+          
+          # Verify file was downloaded and has content
+          if [ ! -f tmp/input.webm ]; then
+            echo "❌ File not created!"
+            exit 1
+          fi
+          
+          FILE_SIZE=$(stat -f%z tmp/input.webm 2>/dev/null || stat -c%s tmp/input.webm)
+          echo "📦 Downloaded file size: $FILE_SIZE bytes"
+          
+          if [ "$FILE_SIZE" -lt 1000 ]; then
+            echo "⚠️  File seems too small, might be an error page"
+            echo "File contents:"
+            head -20 tmp/input.webm
+            exit 1
+          fi
+          
           ls -lh tmp/input.webm
+          file tmp/input.webm
 
       - name: Probe input
         run: |
           echo "📐 Input info:"
-          ffprobe -v error -show_entries stream=width,height,codec_name,pix_fmt \
-            -of default=noprint_wrappers=1 tmp/input.webm
+          if ! ffprobe -v error -show_entries stream=width,height,codec_name,pix_fmt \
+            -of default=noprint_wrappers=1 tmp/input.webm; then
+            echo "❌ ffprobe failed - file might be corrupted"
+            echo "Trying with more verbose output:"
+            ffprobe -v debug tmp/input.webm 2>&1 | head -50
+            exit 1
+          fi
 
       - name: Encode HEVC with Alpha (VideoToolbox)
         run: |
