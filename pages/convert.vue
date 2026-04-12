@@ -226,46 +226,54 @@
             <div v-if="item.status === 'done'" class="result-card result-card-svga">
               <h3 class="result-title">✅ Parse Complete</h3>
 
-              <!-- Stats -->
-              <div v-if="item.stats" class="svga-stats">
-                <span class="stat-chip">{{ item.stats.frames }} frames</span>
-                <span class="stat-chip">{{ item.stats.fps }} FPS</span>
-                <span class="stat-chip">{{ item.stats.viewBoxWidth }}×{{ item.stats.viewBoxHeight }}</span>
-                <span class="stat-chip">{{ item.stats.images }} images</span>
-                <span v-if="item.jsonSize" class="stat-chip">JSON: {{ formatSize(item.jsonSize) }}</span>
-              </div>
-
-              <!-- Primary: Download -->
-              <div class="result-actions-primary">
-                <a :href="item.downloadUrl || `/api/preview/svga/${item.outputName}/${item.outputName}.json`" :download="`${item.outputName}.json`" class="btn btn-success">⬇️ Download JSON</a>
-              </div>
-
-              <!-- Secondary -->
-              <div class="result-actions-secondary">
-                <button class="btn btn-secondary btn-sm" @click="item.showCdnUpload = !item.showCdnUpload">
-                  ☁️ Upload to CDN {{ item.showCdnUpload ? '▲' : '▼' }}
-                </button>
-              </div>
-
-              <!-- Inline CDN Upload -->
-              <div v-if="item.showCdnUpload" class="cdn-upload-inline">
-                <div class="form-group">
-                  <label class="form-label">CDN Provider</label>
-                  <select v-model="item.cdnProvider" class="form-select">
-                    <option value="r2">Cloudflare R2</option>
-                    <option value="imagekit">ImageKit</option>
-                  </select>
+              <div class="result-content">
+                <div class="result-preview">
+                  <SvgaPlayer v-if="item.downloadUrl" :jsonUrl="item.downloadUrl" :maxWidth="280" :maxHeight="200" />
                 </div>
-                <div class="form-group">
-                  <label class="form-label">Remote Path</label>
-                  <input v-model="item.cdnPath" class="form-input" placeholder="/" />
-                </div>
-                <button class="btn btn-primary btn-sm" @click="uploadToCdn(item, 'svga')" :disabled="item.cdnUploading">
-                  {{ item.cdnUploading ? 'Uploading...' : '☁️ Upload' }}
-                </button>
-                <div v-if="item.cdnUrl" class="cdn-url-result">
-                  <span class="badge badge-emerald">✅ Uploaded</span>
-                  <a :href="item.cdnUrl" target="_blank" class="cdn-url-link">{{ item.cdnUrl }}</a>
+
+                <div class="result-details">
+                  <!-- Stats -->
+                  <div v-if="item.stats" class="svga-stats">
+                    <span class="stat-chip">{{ item.stats.frames }} frames</span>
+                    <span class="stat-chip">{{ item.stats.fps }} FPS</span>
+                    <span class="stat-chip">{{ item.stats.viewBoxWidth }}×{{ item.stats.viewBoxHeight }}</span>
+                    <span class="stat-chip">{{ item.stats.images }} images</span>
+                    <span v-if="item.jsonSize" class="stat-chip">JSON: {{ formatSize(item.jsonSize) }}</span>
+                  </div>
+
+                  <!-- Primary: Download -->
+                  <div class="result-actions-primary">
+                    <a :href="item.downloadUrl || `/api/preview/svga/${item.outputName}/${item.outputName}.json`" :download="`${item.outputName}.json`" class="btn btn-success">⬇️ Download JSON</a>
+                  </div>
+
+                  <!-- Secondary -->
+                  <div class="result-actions-secondary">
+                    <button class="btn btn-secondary btn-sm" @click="item.showCdnUpload = !item.showCdnUpload">
+                      ☁️ Upload to CDN {{ item.showCdnUpload ? '▲' : '▼' }}
+                    </button>
+                  </div>
+
+                  <!-- Inline CDN Upload -->
+                  <div v-if="item.showCdnUpload" class="cdn-upload-inline">
+                    <div class="form-group">
+                      <label class="form-label">CDN Provider</label>
+                      <select v-model="item.cdnProvider" class="form-select">
+                        <option value="r2">Cloudflare R2</option>
+                        <option value="imagekit">ImageKit</option>
+                      </select>
+                    </div>
+                    <div class="form-group">
+                      <label class="form-label">Remote Path</label>
+                      <input v-model="item.cdnPath" class="form-input" placeholder="/" />
+                    </div>
+                    <button class="btn btn-primary btn-sm" @click="uploadToCdn(item, 'svga')" :disabled="item.cdnUploading">
+                      {{ item.cdnUploading ? 'Uploading...' : '☁️ Upload' }}
+                    </button>
+                    <div v-if="item.cdnUrl" class="cdn-url-result">
+                      <span class="badge badge-emerald">✅ Uploaded</span>
+                      <a :href="item.cdnUrl" target="_blank" class="cdn-url-link">{{ item.cdnUrl }}</a>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -445,6 +453,8 @@ const addVideoFiles = (files: File[]) => {
     })
     added++
   }
+  // Sort by output name in ascending order
+  videoQueue.value.sort((a, b) => a.outputName.localeCompare(b.outputName))
   if (added) addToast?.('info', `${added} video(s) added`)
 }
 

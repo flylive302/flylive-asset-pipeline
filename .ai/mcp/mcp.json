@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "memory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/home/xha"
+      ]
+    },
+    "fetch": {
+      "command": "/home/xha/.local/bin/uvx",
+      "args": [
+        "mcp-server-fetch"
+      ]
+    }
+  }
+}
